@@ -61,6 +61,7 @@ func CheckSudo() {
 	}
 }
 
+// CreateNamespace to create a new namespace
 func CreateNamespace(nsName string) (string, error) {
 
 	netnsDir := "/var/run/netns"
@@ -135,17 +136,25 @@ func main() {
 	newns, _ := netns.New()
 	defer newns.Close()
 
-	netnsDirPath, err := CreateNamespace("ns8")
+	nsPath := filepath.Join("/var/run/netns", "ns8")
+	f, err := os.Create(nsPath)
 	if err != nil {
-		log.Fatal(err, "\n", netnsDirPath)
+		log.Println("create dir fail", err)
 	}
+
+	if err = f.Close(); err != nil {
+		log.Fatal("close file fail")
+	}
+	err = syscall.Mount("/proc/self/ns/net", nsPath, "", syscall.MS_BIND, "")
+	if err != nil {
+		log.Println("mount faild")
+	}
+
 	netns.Set(origns)
 
-	netnsFile, err := os.Open(netnsDirPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = netlink.LinkSetNsFd(containerVeth, int(netnsFile.Fd()))
+	nsfd, err := os.Open(nsPath)
+
+	err = netlink.LinkSetNsFd(containerVeth, int(nsfd.Fd()))
 	if err != nil {
 		log.Println(err)
 	}
