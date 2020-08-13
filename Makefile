@@ -3,4 +3,4 @@ all:
 clean:
 	rm jail.out
 run: all
-	./jail.out
+	sudo ./jail.out

@@ -16,6 +16,7 @@ import (
 	"github.com/vishvananda/netns"
 )
 
+// NewJailInterface to add correct veth pair names
 func NewJailInterface() string {
 	allLinks, err := netlink.LinkList()
 	if err != nil {
@@ -42,6 +43,7 @@ func NewJailInterface() string {
 	return "jail0"
 }
 
+// CheckSudo to check sudo priviliage
 func CheckSudo() {
 	cmd := exec.Command("id", "-u")
 	output, err := cmd.Output()
@@ -61,48 +63,46 @@ func CheckSudo() {
 	}
 }
 
-// CreateNamespace to create a new namespace
-func CreateNamespace(nsName string) (string, error) {
+// RemoveLinkExist remove the link if exist
+func RemoveLinkExist(vethName string) error {
+	vethLink, err := netlink.LinkByName(vethName)
+	if err != nil && err.Error() == "Link not found" {
+		return nil
+	}
+	if vethLink == nil {
+		return nil
+	}
+	if err := netlink.LinkSetDown(vethLink); err != nil {
+		log.Fatal("cannot set link down veth:", vethName)
+	}
+	if err := netlink.LinkDel(vethLink); err != nil {
+		return err
+	}
+	return nil
+}
 
-	netnsDir := "/var/run/netns"
-	_, err := os.Stat(netnsDir)
-	if err != nil {
-		log.Println("cannot find ", netnsDir, "perhaps your kernel need en upgrade")
-		return "", err
+func cleanInterfaceNamespace() {
+	if err := RemoveLinkExist(hostVethName); err != nil {
+		log.Println(err.Error())
+	}
+	if err := RemoveLinkExist(jailVethName); err != nil {
+		log.Println(err.Error())
 	}
 
-	netnsDirPath := filepath.Join(netnsDir, nsName)
-	f, err := os.Create(netnsDirPath)
-	if err != nil {
-		log.Println("create dir fail", err)
-		return "", err
+	if err := netns.DeleteNamed(nsName); err != nil {
+		log.Println(err.Error())
+		log.Println("deleting a namespace failed:", nsName)
 	}
 
-	if err = f.Close(); err != nil {
-		log.Println("close file fail")
-		return "", err
-	}
-	err = syscall.Mount("/proc/self/ns/net", netnsDirPath, "", syscall.MS_BIND, "")
-	if err != nil {
-		log.Println("mount faild")
-		return "", err
-	}
-	return netnsDirPath, nil
 }
 
 func main() {
-	// Lock the OS Thread so we don't accidentally switch namespaces
+
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	CheckSudo()
+	cleanInterfaceNamespace()
 
-	prefix := NewJailInterface()
-
-	if prefix == "" {
-		log.Fatal("get new interface fail")
-	}
-
-	hostVethName := fmt.Sprintf("%sa", prefix)
-	jailVethName := fmt.Sprintf("%sb", prefix)
 	vethLinkAttrs := netlink.NewLinkAttrs()
 	vethLinkAttrs.Name = hostVethName
 
@@ -124,8 +124,9 @@ func main() {
 		log.Fatal("cannot get link from veth")
 	}
 
-	log.Println("get interface:", containerVeth)
+	log.Println("interface create:\n", containerVeth)
 
+	// Lock the OS Thread so we don't accidentally switch namespaces
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -136,7 +137,7 @@ func main() {
 	newns, _ := netns.New()
 	defer newns.Close()
 
-	nsPath := filepath.Join("/var/run/netns", "ns8")
+	nsPath := filepath.Join("/var/run/netns", nsName)
 	f, err := os.Create(nsPath)
 	if err != nil {
 		log.Println("create dir fail", err)
@@ -159,7 +160,7 @@ func main() {
 		log.Println(err)
 	}
 	ifaces, _ := net.Interfaces()
-	fmt.Printf("Interfaces: %v\n", ifaces)
+	fmt.Printf("Interfaces on host: \n%v\n", ifaces)
 
 }
 

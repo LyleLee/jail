@@ -20,5 +20,9 @@ type packetCounter struct {
 	sendByte     int64
 }
 
-//map["8.8.8.8"]["udp"][53].xxx
+// Keeper map["8.8.8.8"]["udp"][53].xxx
 var Keeper map[string]map[string]map[int]packetCounter
+
+var hostVethName = "jaila"
+var jailVethName = "jailb"
+var nsName = "jailns"
