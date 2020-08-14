@@ -12,6 +12,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 )
@@ -213,6 +216,42 @@ func main() {
 
 	setupEnviroment()
 
+	// Open device
+	handle, err = pcap.OpenLive(device, snapshot_len, promiscuous, timeout)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer handle.Close()
+
+	// Use the handle as a packet source to process all packets
+	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+	for packet := range packetSource.Packets() {
+		// Process packet here
+		parser := gopacket.NewDecodingLayerParser(
+			layers.LayerTypeEthernet,
+			&ethLayer,
+			&ipLayer,
+			&tcpLayer,
+		)
+		foundLayerTypes := []gopacket.LayerType{}
+
+		err := parser.DecodeLayers(packet.Data(), &foundLayerTypes)
+		if err != nil {
+			continue
+			//fmt.Println("Trouble decoding layers: ", err)
+		}
+
+		for _, layerType := range foundLayerTypes {
+			if layerType == layers.LayerTypeIPv4 {
+				fmt.Print("IPv4: ", ipLayer.SrcIP, "->", ipLayer.DstIP)
+			}
+			if layerType == layers.LayerTypeTCP {
+				fmt.Print("TCP Port: ", tcpLayer.SrcPort, "->", tcpLayer.DstPort)
+				fmt.Print("TCP SYN:", tcpLayer.SYN, " | ACK:", tcpLayer.ACK)
+			}
+		}
+		fmt.Println()
+	}
 }
 
 //add route https://github.com/teddyking/netsetgo/blob/0.0.1/configurer/container.go#L47-L53
