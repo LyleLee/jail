@@ -93,7 +93,28 @@ func cleanInterfaceNamespace() {
 		log.Println(err.Error())
 		log.Println("deleting a namespace failed:", nsName)
 	}
+}
 
+func setIPaddress(vethname string, ipcidr string) error {
+	link, err := netlink.LinkByName(vethname)
+	if err != nil {
+		return nil
+	}
+
+	ip, ipnet, err := net.ParseCIDR(ipcidr)
+	if err != nil {
+		return nil
+	}
+	addr := &netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
+
+	if err := netlink.AddrAdd(link, addr); err != nil {
+		return err
+	}
+
+	if err := netlink.LinkSetUp(link); err != nil {
+		return err
+	}
+	return nil
 }
 
 func main() {
@@ -115,16 +136,7 @@ func main() {
 		log.Fatal("fail to add veth pair")
 	}
 
-	if err := netlink.LinkSetUp(veth); err != nil {
-		log.Fatal("fail to ip link set $(link) up")
-	}
-
-	containerVeth, err := netlink.LinkByName(jailVethName)
-	if err != nil {
-		log.Fatal("cannot get link from veth")
-	}
-
-	log.Println("interface create:\n", containerVeth)
+	setIPaddress(hostVethName, "10.8.8.1/24")
 
 	// Lock the OS Thread so we don't accidentally switch namespaces
 	runtime.LockOSThread()
@@ -154,13 +166,52 @@ func main() {
 	netns.Set(origns)
 
 	nsfd, err := os.Open(nsPath)
+	containerVeth, err := netlink.LinkByName(jailVethName)
 
 	err = netlink.LinkSetNsFd(containerVeth, int(nsfd.Fd()))
 	if err != nil {
 		log.Println(err)
 	}
-	ifaces, _ := net.Interfaces()
-	fmt.Printf("Interfaces on host: \n%v\n", ifaces)
+
+	netns.Set(newns)
+
+	// config namespace ip
+	containerLink, err := netlink.LinkByName(jailVethName)
+	if err != nil {
+		log.Println(err.Error())
+	}
+
+	ip, ipnet, err := net.ParseCIDR("10.8.8.2/24")
+	if err != nil {
+		log.Println(err.Error())
+	}
+	addr := &netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
+
+	if err := netlink.AddrAdd(containerLink, addr); err != nil {
+		log.Println(err.Error())
+	}
+
+	if err := netlink.LinkSetUp(containerLink); err != nil {
+		log.Fatal("fail to ip link set $(link) up")
+	}
+
+	// up namespace loopback interface
+	if lo, err := netlink.LinkByName("lo"); err == nil {
+		if err := netlink.LinkSetUp(lo); err != nil {
+			log.Println(err.Error())
+		}
+	}
+
+	// configure namespace ip route, need to up interface first
+	gatewayip, _, _ := net.ParseCIDR("10.8.8.1/24")
+
+	route := &netlink.Route{
+		Scope: netlink.SCOPE_UNIVERSE,
+		Gw:    gatewayip,
+	}
+	netlink.RouteAdd(route)
+
+	netns.Set(origns)
 
 }
 
