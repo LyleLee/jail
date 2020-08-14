@@ -117,6 +117,18 @@ func setIPaddress(vethname string, ipcidr string) error {
 	return nil
 }
 
+func setupEnviroment() error {
+	cmd := exec.Command("bash", "-c", "./iptables_setting.sh")
+	output, err := cmd.Output()
+
+	if err != nil {
+		log.Println(output)
+		return err
+	}
+	log.Println(string(output))
+	return nil
+}
+
 func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -136,6 +148,7 @@ func main() {
 		log.Fatal("fail to add veth pair")
 	}
 
+	// configure host jail veth ip
 	setIPaddress(hostVethName, "10.8.8.1/24")
 
 	// Lock the OS Thread so we don't accidentally switch namespaces
@@ -165,6 +178,7 @@ func main() {
 
 	netns.Set(origns)
 
+	// mv jail veth to new namespace
 	nsfd, err := os.Open(nsPath)
 	containerVeth, err := netlink.LinkByName(jailVethName)
 
@@ -176,24 +190,8 @@ func main() {
 	netns.Set(newns)
 
 	// config namespace ip
-	containerLink, err := netlink.LinkByName(jailVethName)
-	if err != nil {
-		log.Println(err.Error())
-	}
 
-	ip, ipnet, err := net.ParseCIDR("10.8.8.2/24")
-	if err != nil {
-		log.Println(err.Error())
-	}
-	addr := &netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: ipnet.Mask}}
-
-	if err := netlink.AddrAdd(containerLink, addr); err != nil {
-		log.Println(err.Error())
-	}
-
-	if err := netlink.LinkSetUp(containerLink); err != nil {
-		log.Fatal("fail to ip link set $(link) up")
-	}
+	setIPaddress(jailVethName, "10.8.8.2/24")
 
 	// up namespace loopback interface
 	if lo, err := netlink.LinkByName("lo"); err == nil {
@@ -212,6 +210,8 @@ func main() {
 	netlink.RouteAdd(route)
 
 	netns.Set(origns)
+
+	setupEnviroment()
 
 }
 
