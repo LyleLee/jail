@@ -4,3 +4,5 @@ clean:
 	rm jail.out
 run: all
 	sudo ./jail.out
+testbaidu:
+	sudo ip netns exec jailns curl baidu.com
