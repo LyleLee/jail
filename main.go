@@ -243,11 +243,11 @@ func main() {
 
 		for _, layerType := range foundLayerTypes {
 			if layerType == layers.LayerTypeIPv4 {
-				fmt.Print("IPv4: ", ipLayer.SrcIP, "->", ipLayer.DstIP)
+				fmt.Printf("IPv4: %-15s -> %-15s ", ipLayer.SrcIP, ipLayer.DstIP)
 			}
 			if layerType == layers.LayerTypeTCP {
-				fmt.Print("TCP Port: ", tcpLayer.SrcPort, "->", tcpLayer.DstPort)
-				fmt.Print("TCP SYN:", tcpLayer.SYN, " | ACK:", tcpLayer.ACK)
+				fmt.Printf("TCP Port: %6d ->  %6d ", tcpLayer.SrcPort, tcpLayer.DstPort)
+				fmt.Printf("TCP SYN: %v | ACK: %v", tcpLayer.SYN, tcpLayer.ACK)
 			}
 		}
 		fmt.Println()
