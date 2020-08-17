@@ -247,11 +247,13 @@ func main() {
 			}
 			if layerType == layers.LayerTypeTCP {
 				fmt.Printf("TCP Port: %6d ->  %6d ", tcpLayer.SrcPort, tcpLayer.DstPort)
-				fmt.Printf("TCP SYN: %v | ACK: %v", tcpLayer.SYN, tcpLayer.ACK)
+				fmt.Printf("TCP SYN: %5v | ACK: %5v", tcpLayer.SYN, tcpLayer.ACK)
 			}
 		}
 		fmt.Println()
 	}
+
+	fmt.Println("program finish")
 }
 
 //add route https://github.com/teddyking/netsetgo/blob/0.0.1/configurer/container.go#L47-L53
