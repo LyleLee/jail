@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -134,6 +135,10 @@ func setupEnviroment() error {
 
 func main() {
 
+	pid := flag.Int("pid", -1, "program's pid")
+
+	flag.Parse()
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	CheckSudo()
@@ -212,6 +217,18 @@ func main() {
 	}
 	netlink.RouteAdd(route)
 
+	if *pid != -1 {
+		netns.Setns(newns, *pid)
+	} else if *pid == -1 && len(flag.Args()) > 0 {
+		cmd := exec.Command("bash", "-c", strings.Join(flag.Args(), " "))
+		output, _ := cmd.Output()
+		fmt.Println(output)
+	} else if *pid == -1 && len(flag.Args()) == 0 {
+		//do nothing
+	} else {
+		//do nothing
+	}
+
 	netns.Set(origns)
 
 	setupEnviroment()
@@ -258,3 +275,5 @@ func main() {
 
 //add route https://github.com/teddyking/netsetgo/blob/0.0.1/configurer/container.go#L47-L53
 //add ip https://github.com/teddyking/netsetgo/blob/0.0.1/configurer/container.go#L37
+// write pcap file https://www.devdungeon.com/content/packet-capture-injection-and-analysis-gopacket#write-pcap-file
+// namespace basic https://medium.com/@teddyking/namespaces-in-go-network-fdcf63e76100
