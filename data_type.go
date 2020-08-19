@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync"
 	"time"
 
 	"github.com/google/gopacket/layers"
@@ -44,3 +45,4 @@ var (
 	ipLayer      layers.IPv4
 	tcpLayer     layers.TCP
 )
+var wg sync.WaitGroup
