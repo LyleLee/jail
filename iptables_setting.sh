@@ -16,5 +16,5 @@ if [ ! -d /etc/netns/$jailns/resolv.conf ]; then
 	sudo mkdir -p /etc/netns/$jailns
 fi
 
-echo "nameserver 114.114.114.114" | sudo tee /etc/netns/$jailns/resolv.conf
-echo "nameserver 114.114.114.114" | sudo tee /etc/resolv.conf
+#echo "nameserver 114.114.114.114" | sudo tee /etc/netns/$jailns/resolv.conf
+#echo "nameserver 114.114.114.114" | sudo tee /etc/resolv.conf

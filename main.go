@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/gopacket"
@@ -244,6 +245,10 @@ func main() {
 		Gw:    gatewayip,
 	}
 	netlink.RouteAdd(route)
+
+	if err := syscall.Mount("/etc/netns/jailns/resolv.conf", "/etc/resolv.conf", "", syscall.MS_BIND, ""); err != nil {
+		log.Println(err.Error())
+	}
 
 	netns.Set(origns)
 
