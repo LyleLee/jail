@@ -1,4 +1,4 @@
-module github.com/Lylelee/jail-program
+module github.com/Lylelee/jail
 
 go 1.14
 

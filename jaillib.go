@@ -1,4 +1,4 @@
-package main
+package jail
 
 import (
 	"flag"
@@ -18,6 +18,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 )
+
 
 // NewJailInterface to add correct veth pair names
 func NewJailInterface() string {
