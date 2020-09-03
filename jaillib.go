@@ -82,9 +82,13 @@ func setupEnviroment() {
 		log.Fatal(err.Error())
 	}
 
+	go startCapture()
+
+	wg.Add(1)
 	if err := setupNamespace(); err != nil {
 		log.Fatal(err.Error())
 	}
+	wg.Wait()
 }
 
 func setupNamespace() error {
@@ -186,18 +190,16 @@ func nsInit() {
 
 func nsRun() {
 	//panic("panic from func nsRun()")
-	cmd := exec.Command("/bin/sh")
+	cmd := exec.Command("bash", "-c", "curl www.baidu.com")
 
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	cmd.Env = []string{"PS1=-[ns-process]- # "}
-
-	if err := cmd.Run(); err != nil {
+	//cmd.Env = []string{"PS1=-[ns-process]- # "}
+	log.Println("running command:", cmd.Path, cmd.Args)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
 		fmt.Printf("Error running the /bin/sh command - %s\n", err)
 		os.Exit(1)
 	}
+	log.Println(string(output))
 }
 func addVethPair() error {
 	vethLinkAttrs := netlink.NewLinkAttrs()
@@ -268,7 +270,6 @@ func checkSudo() {
 func removeLinkExist(vethName string) error {
 	vethLink, err := netlink.LinkByName(vethName)
 	if err != nil && err.Error() == "Link not found" {
-		log.Println("Link not found")
 		return nil
 	}
 	if vethLink == nil {
