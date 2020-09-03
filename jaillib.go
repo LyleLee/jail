@@ -1,17 +1,18 @@
 package jail
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/docker/docker/pkg/reexec"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -19,6 +20,178 @@ import (
 	"github.com/vishvananda/netns"
 )
 
+/*
+8.8.8.8
+    53, udp, revice 4 packets, 100 B, send 10 packets, 200 Bytes
+220.181.38.150
+    80, udp, revice 4 packets, 100 B, send 10 packets, 200 Bytes
+    443, udp, revice 4 packets, 100 B, send 10 packets, 200 Bytes
+23.16.1.18
+    80, udp, revice 4 packets, 100 B, send 10 packets, 200 Bytes
+    443, udp, revice 4 packets, 100 B, send 10 packets, 200 Bytes
+    0, icmp, revice 4 packets, 100 B, send 10 packets, 200 Bytes
+
+*/
+
+type packetCounter struct {
+	receiveCount int64
+	receiveByte  int64
+	sendCount    int64
+	sendByte     int64
+}
+
+// Keeper map["8.8.8.8"]["udp"][53].xxx
+var Keeper map[string]map[string]map[int]packetCounter
+
+var (
+	hostVethName string = "jaila"
+	jailVethName string = "jailb"
+	nsName       string = "jailns"
+	device       string = hostVethName
+	snapshot_len int32  = 1024
+	promiscuous  bool   = false
+	err          error
+	timeout      time.Duration = 30 * time.Second
+	handle       *pcap.Handle
+	ethLayer     layers.Ethernet
+	ipLayer      layers.IPv4
+	tcpLayer     layers.TCP
+)
+var wg sync.WaitGroup
+
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	reexec.Register("nsInit", nsInit)
+	if reexec.Init() {
+		os.Exit(0)
+	}
+}
+
+func setupEnviroment() {
+	if err := cleanInterface(); err != nil {
+		log.Println(err.Error())
+	}
+	if err := cleanNamespace(); err != nil {
+		log.Printf(err.Error())
+	}
+	if err := addVethPair(); err != nil {
+		log.Fatal(err.Error())
+	}
+
+	if err := setupHostVeth(); err != nil {
+		log.Fatal(err.Error())
+	}
+
+	if err := setupNamespace(); err != nil {
+		log.Fatal(err.Error())
+	}
+}
+
+func setupNamespace() error {
+	cmd := reexec.Command("nsInit")
+
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWNS |
+			syscall.CLONE_NEWUTS |
+			syscall.CLONE_NEWIPC |
+			syscall.CLONE_NEWPID |
+			syscall.CLONE_NEWNET |
+			syscall.CLONE_NEWUSER,
+		UidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      os.Getegid(),
+				Size:        1,
+			},
+		},
+		GidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      os.Getegid(),
+				Size:        1,
+			},
+		},
+	}
+
+	if err := cmd.Run(); err != nil {
+		fmt.Println("Error running reexec.command:", err.Error())
+		return err
+	}
+	return nil
+}
+
+func setupHostVeth() error {
+	if err := setIPaddress(hostVethName, "10.8.8.1/24"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func nsInit() {
+	// set up
+
+	log.Println("begin setup namespace ...")
+	if err := setIPaddress(jailVethName, "10.8.8.2/24"); err != nil {
+		log.Fatal(err.Error())
+	}
+
+	// up namespace loopback interface
+	if lo, err := netlink.LinkByName("lo"); err == nil {
+		if err := netlink.LinkSetUp(lo); err != nil {
+			log.Println(err.Error())
+		}
+	}
+
+	gatewayip, _, _ := net.ParseCIDR("10.8.8.1/24")
+
+	route := &netlink.Route{
+		Scope: netlink.SCOPE_UNIVERSE,
+		Gw:    gatewayip,
+	}
+	netlink.RouteAdd(route)
+
+	log.Println("finish setup namespace")
+
+	nsRun()
+}
+
+func nsRun() {
+	//panic("panic from func nsRun()")
+	cmd := exec.Command("/bin/sh")
+
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	cmd.Env = []string{"PS1=-[ns-process]- # "}
+
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("Error running the /bin/sh command - %s\n", err)
+		os.Exit(1)
+	}
+}
+func addVethPair() error {
+	vethLinkAttrs := netlink.NewLinkAttrs()
+	vethLinkAttrs.Name = hostVethName
+
+	veth := &netlink.Veth{
+		LinkAttrs: vethLinkAttrs,
+		PeerName:  jailVethName,
+	}
+
+	if err := netlink.LinkAdd(veth); err != nil {
+		return err
+	}
+	return nil
+}
+
+func jailStart() {
+
+}
 
 // NewJailInterface to add correct veth pair names
 func NewJailInterface() string {
@@ -48,7 +221,7 @@ func NewJailInterface() string {
 }
 
 // CheckSudo to check sudo priviliage
-func CheckSudo() {
+func checkSudo() {
 	cmd := exec.Command("id", "-u")
 	output, err := cmd.Output()
 
@@ -67,13 +240,14 @@ func CheckSudo() {
 	}
 }
 
-// RemoveLinkExist remove the link if exist
-func RemoveLinkExist(vethName string) error {
+func removeLinkExist(vethName string) error {
 	vethLink, err := netlink.LinkByName(vethName)
 	if err != nil && err.Error() == "Link not found" {
+		log.Println("Link not found")
 		return nil
 	}
 	if vethLink == nil {
+		log.Println("Get Link empty")
 		return nil
 	}
 	if err := netlink.LinkSetDown(vethLink); err != nil {
@@ -85,19 +259,24 @@ func RemoveLinkExist(vethName string) error {
 	return nil
 }
 
-func cleanInterfaceNamespace() {
-	if err := RemoveLinkExist(hostVethName); err != nil {
-		log.Println(err.Error())
+func cleanInterface() error {
+	if err := removeLinkExist(hostVethName); err != nil {
+		return err
 	}
-	if err := RemoveLinkExist(jailVethName); err != nil {
-		log.Println(err.Error())
+	if err := removeLinkExist(jailVethName); err != nil {
+		return err
 	}
+	return nil
+}
 
+func cleanNamespace() error {
 	log.Println("deleting a namespace:", nsName)
 	if err := netns.DeleteNamed(nsName); err != nil {
 		log.Println(err.Error())
 		log.Println("deleting a namespace failed:", nsName)
+		return err
 	}
+	return nil
 }
 
 func setIPaddress(vethname string, ipcidr string) error {
@@ -174,6 +353,7 @@ func executeCommand(cmdString string) {
 	fmt.Println(string(output))
 }
 
+/*
 func main() {
 
 	pid := flag.Int("pid", -1, "program's pid")
@@ -182,20 +362,9 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	CheckSudo()
+	checkSudo()
 	cleanInterfaceNamespace()
 
-	vethLinkAttrs := netlink.NewLinkAttrs()
-	vethLinkAttrs.Name = hostVethName
-
-	veth := &netlink.Veth{
-		LinkAttrs: vethLinkAttrs,
-		PeerName:  jailVethName,
-	}
-
-	if err := netlink.LinkAdd(veth); err != nil {
-		log.Fatal("fail to add veth pair")
-	}
 
 	// configure host jail veth ip
 	setIPaddress(hostVethName, "10.8.8.1/24")
@@ -277,6 +446,8 @@ func main() {
 	wg.Wait()
 	fmt.Println("program finish")
 }
+
+*/
 
 // add route https://github.com/teddyking/netsetgo/blob/0.0.1/configurer/container.go#L47-L53
 // add ip https://github.com/teddyking/netsetgo/blob/0.0.1/configurer/container.go#L37

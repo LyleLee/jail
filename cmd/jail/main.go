@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	"strings"
 
 	"github.com/Lylelee/jail"
@@ -13,8 +12,6 @@ func main() {
 	pid := flag.Int("pid", -1, "program's pid")
 
 	flag.Parse()
-
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	if *pid != -1 {
 		jail.TrapPID()
