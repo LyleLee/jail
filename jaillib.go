@@ -149,9 +149,6 @@ func moveVethToContainer(namespacePID int) error {
 	return netlink.LinkSetNsPid(containerVethLink, namespacePID)
 }
 
-func setupHostIptable() error {
-	return nil
-}
 func setupHostVeth() error {
 	if err := setIPaddress(hostVethName, "10.8.8.1/24"); err != nil {
 		return err

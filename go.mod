@@ -3,6 +3,7 @@ module github.com/Lylelee/jail
 go 1.14
 
 require (
+	github.com/Lylelee/go-iptables v0.4.5
 	github.com/coreos/go-iptables v0.4.5
 	github.com/docker/docker v1.13.1
 	github.com/google/gopacket v1.1.18

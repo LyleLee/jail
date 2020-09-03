@@ -1,3 +1,5 @@
+github.com/Lylelee/go-iptables v0.4.5 h1:l7/SO38fmKH0dRYUmwb1bPWRo6oK05m1tXO6QTkBWCM=
+github.com/Lylelee/go-iptables v0.4.5/go.mod h1:AwC/46uRKexVY6y83/NBmEuRwY+2yyUqzRiorlqKo5I=
 github.com/Lylelee/jail-program v0.0.0-20200820064957-f6ee7393accc h1:AMUClzE1TUh16azM/5MkkUrCJ4ZngIWAnu7O5vmE9nQ=
 github.com/coreos/go-iptables v0.4.5 h1:DpHb9vJrZQEFMcVLFKAAGMUVX0XoRC0ptCthinRYm38=
 github.com/coreos/go-iptables v0.4.5/go.mod h1:/mVI274lEDI2ns62jHCDnCyBF9Iwsmekav8Dbxlm1MU=
