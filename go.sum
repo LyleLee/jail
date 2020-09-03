@@ -1,4 +1,6 @@
 github.com/Lylelee/jail-program v0.0.0-20200820064957-f6ee7393accc h1:AMUClzE1TUh16azM/5MkkUrCJ4ZngIWAnu7O5vmE9nQ=
+github.com/coreos/go-iptables v0.4.5 h1:DpHb9vJrZQEFMcVLFKAAGMUVX0XoRC0ptCthinRYm38=
+github.com/coreos/go-iptables v0.4.5/go.mod h1:/mVI274lEDI2ns62jHCDnCyBF9Iwsmekav8Dbxlm1MU=
 github.com/docker/docker v1.13.1 h1:IkZjBSIc8hBjLpqeAbeE5mca5mNgeatLHBy3GO78BWo=
 github.com/docker/docker v1.13.1/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/google/gopacket v1.1.18 h1:lum7VRA9kdlvBi7/v2p7/zcbkduHaCH/SVVyurs7OpY=

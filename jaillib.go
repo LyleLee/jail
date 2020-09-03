@@ -117,13 +117,41 @@ func setupNamespace() error {
 		},
 	}
 
-	if err := cmd.Run(); err != nil {
-		fmt.Println("Error running reexec.command:", err.Error())
+	if err := cmd.Start(); err != nil {
+		log.Println("Error running reexec.command:", err.Error())
+		os.Exit(1)
+	}
+
+	if err := moveVethToContainer(cmd.Process.Pid); err != nil {
+		log.Println("Erorr when moving veth to container")
 		return err
 	}
+
+	if err := setupHostIptable(); err != nil {
+		return err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		log.Println("Error at waiting for /proc/self/exec")
+		os.Exit(1)
+	}
+
 	return nil
 }
 
+func moveVethToContainer(namespacePID int) error {
+	containerVethLink, err := netlink.LinkByName(jailVethName)
+
+	if err != nil {
+		return err
+	}
+
+	return netlink.LinkSetNsPid(containerVethLink, namespacePID)
+}
+
+func setupHostIptable() error {
+	return nil
+}
 func setupHostVeth() error {
 	if err := setIPaddress(hostVethName, "10.8.8.1/24"); err != nil {
 		return err
